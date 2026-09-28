@@ -19,6 +19,7 @@ import (
 	protocol "github.com/uvwt/agentdock-protocol"
 	"github.com/uvwt/agentdock/internal/app"
 	"github.com/uvwt/agentdock/internal/buildinfo"
+	"github.com/uvwt/agentdock/internal/observability"
 	"github.com/uvwt/agentdock/internal/publicartifacts"
 	"github.com/uvwt/agentdock/internal/runtimeapi"
 )
@@ -234,7 +235,8 @@ func (c *Client) invoke(parent context.Context, socket *websocket.Conn, incoming
 		if decodeErr := json.Unmarshal(incoming.Arguments, &request); decodeErr != nil {
 			err = fmt.Errorf("解析工具请求: %w", decodeErr)
 		} else {
-			result, err = c.node.Invoke(ctx, request.Tool, request.Arguments)
+			toolCtx := observability.WithSource(ctx, observability.SourceNexus)
+			result, err = c.node.Invoke(toolCtx, request.Tool, request.Arguments)
 		}
 	case protocol.OperationResourceRead:
 		var request struct {

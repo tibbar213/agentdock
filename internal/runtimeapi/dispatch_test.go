@@ -21,6 +21,7 @@ type runtimeStub struct {
 }
 
 func (r *runtimeStub) RuntimeStatus() app.Result          { return app.Result{"status": "ok"} }
+func (r *runtimeStub) RuntimeAnalytics() app.Result       { return app.Result{"total_calls": 7} }
 func (r *runtimeStub) RuntimeSkills() (app.Result, error) { return app.Result{}, nil }
 func (r *runtimeStub) RuntimeSkill(skill string) (app.Result, error) {
 	r.skillTarget = skill
@@ -72,6 +73,7 @@ func TestMethodContract(t *testing.T) {
 		ok     bool
 	}{
 		{"GET", "/internal/runtime/status", "GET", true},
+		{"GET", "/internal/runtime/analytics", "GET", true},
 		{"POST", "/internal/runtime/capabilities", "GET, POST", true},
 		{"DELETE", "/internal/runtime/tasks/task-1", "GET, DELETE", true},
 		{"POST", "/internal/runtime/tasks/task-1", "GET, DELETE", false},
@@ -86,6 +88,19 @@ func TestMethodContract(t *testing.T) {
 				t.Fatalf("AllowHeader() = %q, want %q", got, test.allow)
 			}
 		})
+	}
+}
+
+func TestDispatchAnalytics(t *testing.T) {
+	result, err := Dispatch(context.Background(), &runtimeStub{}, Request{
+		Method: "GET",
+		Path:   "/internal/runtime/analytics",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["total_calls"] != 7 {
+		t.Fatalf("analytics result = %#v", result)
 	}
 }
 

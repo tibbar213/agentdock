@@ -13,6 +13,7 @@ import (
 // HTTP、Nexus Bridge 等传输层都只依赖这份传输无关契约。
 type Runtime interface {
 	RuntimeStatus() app.Result
+	RuntimeAnalytics() app.Result
 	RuntimeSkills() (app.Result, error)
 	RuntimeSkill(skill string) (app.Result, error)
 	RuntimeSkillFiles(skill string) (app.Result, error)

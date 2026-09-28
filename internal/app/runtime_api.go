@@ -31,6 +31,23 @@ func (r *Runtime) RuntimeStatus() Result {
 	}
 }
 
+func (r *Runtime) RuntimeAnalytics() Result {
+	snapshot := r.observer.Snapshot()
+	return Result{
+		"ok":              true,
+		"source":          runtimeAPISource,
+		"started_at":      snapshot.StartedAt,
+		"recent_capacity": snapshot.RecentCapacity,
+		"window_calls":    snapshot.WindowCalls,
+		"total_calls":     snapshot.TotalCalls,
+		"total_errors":    snapshot.TotalErrors,
+		"active_calls":    snapshot.ActiveCalls,
+		"tool_stats":      snapshot.ToolStats,
+		"recent_calls":    snapshot.RecentCalls,
+		"process":         snapshot.Process,
+	}
+}
+
 func (r *Runtime) RuntimeSkills() (Result, error) {
 	return r.skills.RuntimeSkills()
 }

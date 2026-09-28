@@ -12,6 +12,7 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/uvwt/agentdock/internal/app"
 	"github.com/uvwt/agentdock/internal/config"
+	"github.com/uvwt/agentdock/internal/observability"
 )
 
 func TestToolDescriptorsExposeSafetyAnnotations(t *testing.T) {
@@ -225,6 +226,15 @@ func TestOfficialSDKServerListsAndCallsAgentDockTools(t *testing.T) {
 	runtimeInfo, runtimeOK := structured["runtime"].(map[string]any)
 	if !ok || !runtimeOK || runtimeInfo["os"] == "" || runtimeInfo["path_model"] != config.PathModel || result.IsError {
 		t.Fatalf("CallTool() result = %#v", result)
+	}
+
+	analytics := runtime.RuntimeAnalytics()
+	recent, ok := analytics["recent_calls"].([]observability.ExecutionRecord)
+	if !ok || len(recent) == 0 {
+		t.Fatalf("runtime analytics recent_calls = %#v", analytics["recent_calls"])
+	}
+	if recent[0].Tool != "agentdock_context" || recent[0].Source != observability.SourceMCP || !recent[0].Success {
+		t.Fatalf("MCP tool analytics = %#v", recent[0])
 	}
 
 	if err := session.Close(); err != nil {
