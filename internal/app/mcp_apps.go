@@ -40,6 +40,7 @@ var toolUIBindings = map[string]UIBinding{
 	"file_edit":         {ResourceURI: protocol.FileChangeUIResourceURI},
 	"task_manage":       {ResourceURI: protocol.TaskProgressUIResourceURI, Compact: &UITrigger{}},
 	"acp_session":       {ResourceURI: protocol.ACPStatusUIResourceURI},
+	"acp_prompt":        {ResourceURI: protocol.ACPPromptUIResourceURI},
 	"workflow_template_manage": {
 		ResourceURI: protocol.WorkflowUIResourceURI,
 		Action:      "match",
