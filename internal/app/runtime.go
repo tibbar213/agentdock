@@ -274,6 +274,7 @@ func (r *Runtime) ToolDefinition(name string) (ToolDefinition, bool) {
 func (r *Runtime) Call(ctx context.Context, name string, args map[string]any) (result Result, err error) {
 	startedAt := time.Now()
 	r.observer.BeginTool()
+	ctx = observability.WithExecution(ctx, startedAt)
 	defer r.observeToolCall(ctx, name, startedAt, &err)
 
 	if args == nil {

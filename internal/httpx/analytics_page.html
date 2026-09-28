@@ -263,6 +263,66 @@
       font-size: 11px;
     }
 
+    .stage-toggle {
+      padding: 4px 9px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--panel-soft);
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    .stage-toggle:hover,
+    .stage-toggle:focus-visible {
+      border-color: var(--accent);
+      color: var(--accent);
+      outline: none;
+    }
+
+    .stage-detail td {
+      padding-top: 10px;
+      padding-bottom: 14px;
+      background: var(--panel-soft);
+      white-space: normal;
+    }
+
+    .stage-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .stage-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 9px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+    }
+
+    .stage-chip::before {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      content: "";
+    }
+
+    .stage-chip-error::before {
+      background: var(--danger);
+    }
+
+    .stage-timing {
+      color: var(--muted-soft);
+    }
+
     .empty {
       padding: 32px 18px;
       color: var(--muted);
@@ -325,6 +385,11 @@
   data-days="{{.Text.Days}}"
   data-window-suffix="{{.Text.WindowSuffix}}"
   data-error-unavailable="{{.Text.ErrorCodeUnavailable}}"
+  data-stage-unit="{{.Text.StageUnit}}"
+  data-stage-mcp-refresh="{{.Text.StageMCPRefresh}}"
+  data-stage-mcp-remote-call="{{.Text.StageMCPRemoteCall}}"
+  data-stage-command-start="{{.Text.StageCommandStart}}"
+  data-stage-command-wait="{{.Text.StageCommandWait}}"
 >
   <main class="page">
     <header class="hero">
@@ -426,6 +491,7 @@
               <th>{{.Text.Source}}</th>
               <th>{{.Text.Tool}}</th>
               <th>{{.Text.Duration}}</th>
+              <th>{{.Text.Stages}}</th>
               <th>{{.Text.Status}}</th>
             </tr>
           </thead>
@@ -462,11 +528,19 @@
         days: body.dataset.days,
         windowSuffix: body.dataset.windowSuffix,
         errorUnavailable: body.dataset.errorUnavailable,
-        heapInUse: body.dataset.heapInUse
+        heapInUse: body.dataset.heapInUse,
+        stageUnit: body.dataset.stageUnit,
+        stageLabels: {
+          "mcp.refresh": body.dataset.stageMcpRefresh,
+          "mcp.remote_call": body.dataset.stageMcpRemoteCall,
+          "command.start": body.dataset.stageCommandStart,
+          "command.foreground_wait": body.dataset.stageCommandWait
+        }
       };
 
       const number = new Intl.NumberFormat();
       const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
+      const expandedStageIDs = new Set();
 
       function bytes(value) {
         const size = Number(value || 0);
@@ -530,6 +604,10 @@
         const empty = document.getElementById("recent-calls-empty");
         target.replaceChildren();
         const calls = Array.isArray(rows) ? rows.slice(0, 100) : [];
+        const visibleIDs = new Set(calls.map((item) => String(item.id || "")));
+        for (const id of expandedStageIDs) {
+          if (!visibleIDs.has(id)) expandedStageIDs.delete(id);
+        }
         empty.style.display = calls.length ? "none" : "block";
         for (const item of calls) {
           const tr = document.createElement("tr");
@@ -539,6 +617,58 @@
 
           const sourceCell = document.createElement("td");
           sourceCell.appendChild(source);
+
+          const stages = Array.isArray(item.stages) ? item.stages : [];
+          const stageCell = document.createElement("td");
+          let detailRow = null;
+          if (stages.length) {
+            const stageID = String(item.id || "");
+            const detailID = "stages-" + stageID;
+            const isExpanded = expandedStageIDs.has(stageID);
+            const toggle = document.createElement("button");
+            toggle.type = "button";
+            toggle.className = "stage-toggle";
+            toggle.textContent = number.format(stages.length) + " " + text.stageUnit;
+            toggle.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+            toggle.setAttribute("aria-controls", detailID);
+            stageCell.appendChild(toggle);
+
+            detailRow = document.createElement("tr");
+            detailRow.id = detailID;
+            detailRow.className = "stage-detail";
+            detailRow.hidden = !isExpanded;
+            const detailCell = document.createElement("td");
+            detailCell.colSpan = 6;
+            const list = document.createElement("div");
+            list.className = "stage-list";
+            for (const stage of stages) {
+              const chip = document.createElement("span");
+              chip.className = "stage-chip" + (stage.success ? "" : " stage-chip-error");
+              const name = document.createElement("span");
+              name.textContent = text.stageLabels[stage.name] || stage.name || "—";
+              const timing = document.createElement("span");
+              timing.className = "stage-timing";
+              timing.textContent =
+                "+" + duration(stage.started_offset_ms) + " · " + duration(stage.duration_ms);
+              chip.append(name, timing);
+              list.appendChild(chip);
+            }
+            detailCell.appendChild(list);
+            detailRow.appendChild(detailCell);
+
+            toggle.addEventListener("click", () => {
+              const expanded = toggle.getAttribute("aria-expanded") === "true";
+              toggle.setAttribute("aria-expanded", expanded ? "false" : "true");
+              detailRow.hidden = expanded;
+              if (expanded) {
+                expandedStageIDs.delete(stageID);
+              } else {
+                expandedStageIDs.add(stageID);
+              }
+            });
+          } else {
+            stageCell.textContent = "—";
+          }
 
           const status = document.createElement("span");
           status.className = "status " + (item.success ? "status-ok" : "status-error");
@@ -559,9 +689,11 @@
             sourceCell,
             cell(item.tool || "—", "tool-name"),
             cell(duration(item.duration_ms), "mono"),
+            stageCell,
             statusCell
           );
           target.appendChild(tr);
+          if (detailRow) target.appendChild(detailRow);
         }
       }
 

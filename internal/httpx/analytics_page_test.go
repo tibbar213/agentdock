@@ -21,8 +21,13 @@ func TestAnalyticsPageRendersChineseAndSecurityHeaders(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), "运行分析") {
-		t.Fatalf("page missing Chinese title: %s", recorder.Body.String())
+	if !strings.Contains(recorder.Body.String(), "运行分析") || !strings.Contains(recorder.Body.String(), "阶段") {
+		t.Fatalf("page missing Chinese analytics labels: %s", recorder.Body.String())
+	}
+	for _, required := range []string{"stage-toggle", "stage-detail", "started_offset_ms"} {
+		if !strings.Contains(recorder.Body.String(), required) {
+			t.Fatalf("page missing stage UI contract %q", required)
+		}
 	}
 	if recorder.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("cache-control = %q", recorder.Header().Get("Cache-Control"))

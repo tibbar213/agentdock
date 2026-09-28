@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	goruntime "runtime"
 	"strings"
 	"testing"
 
@@ -45,5 +46,32 @@ func TestRuntimeAnalyticsRecordsSafeToolMetadata(t *testing.T) {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("runtime analytics leaked %q: %s", forbidden, body)
 		}
+	}
+}
+
+func TestRuntimeAnalyticsIncludesCommandStages(t *testing.T) {
+	if goruntime.GOOS == "windows" {
+		t.Skip("test command uses POSIX shell syntax")
+	}
+	rt := newRuntimeValidationTestRuntime(t)
+	result, err := rt.Call(context.Background(), "exec_command", map[string]any{
+		"cmd":            "sleep 0.02",
+		"execution_mode": "sync",
+		"timeout_ms":     2000,
+	})
+	if err != nil {
+		t.Fatalf("exec_command: %v", err)
+	}
+	if result["status"] != "exited" {
+		t.Fatalf("exec_command result = %#v", result)
+	}
+
+	record := rt.observer.Snapshot().RecentCalls[0]
+	if record.Tool != "exec_command" || len(record.Stages) != 2 {
+		t.Fatalf("command analytics = %#v", record)
+	}
+	if record.Stages[0].Name != observability.StageCommandStart ||
+		record.Stages[1].Name != observability.StageCommandForegroundWait {
+		t.Fatalf("command stages = %#v", record.Stages)
 	}
 }

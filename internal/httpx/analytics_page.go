@@ -43,6 +43,12 @@ type analyticsPageText struct {
 	Source               string
 	Duration             string
 	Status               string
+	Stages               string
+	StageUnit            string
+	StageMCPRefresh      string
+	StageMCPRemoteCall   string
+	StageCommandStart    string
+	StageCommandWait     string
 	Success              string
 	Failed               string
 	NoData               string
@@ -84,11 +90,17 @@ var analyticsTextZH = analyticsPageText{
 	P95:                  "较慢调用 · P95",
 	P99:                  "尾部耗时 · P99",
 	RecentCalls:          "调用记录",
-	RecentHint:           "仅保存工具名、来源、耗时、状态与错误码；不保存参数、结果、命令或文件内容。",
+	RecentHint:           "仅保存工具名、来源、耗时、阶段、状态与错误码；不保存参数、结果、命令或文件内容。",
 	Time:                 "时间",
 	Source:               "来源",
 	Duration:             "耗时",
 	Status:               "状态",
+	Stages:               "阶段",
+	StageUnit:            "段",
+	StageMCPRefresh:      "MCP 初始化与发现",
+	StageMCPRemoteCall:   "MCP 远端调用",
+	StageCommandStart:    "命令启动",
+	StageCommandWait:     "前台等待",
 	Success:              "正常",
 	Failed:               "失败",
 	NoData:               "暂无调用数据",
@@ -130,11 +142,17 @@ var analyticsTextEN = analyticsPageText{
 	P95:                  "Slower · P95",
 	P99:                  "Tail · P99",
 	RecentCalls:          "Recent calls",
-	RecentHint:           "Only tool name, source, latency, status, and error code are retained. Arguments, results, commands, and file contents are never stored.",
+	RecentHint:           "Only tool name, source, latency, stages, status, and error code are retained. Arguments, results, commands, and file contents are never stored.",
 	Time:                 "Time",
 	Source:               "Source",
 	Duration:             "Duration",
 	Status:               "Status",
+	Stages:               "Stages",
+	StageUnit:            "stages",
+	StageMCPRefresh:      "MCP initialize & discover",
+	StageMCPRemoteCall:   "MCP remote call",
+	StageCommandStart:    "Command start",
+	StageCommandWait:     "Foreground wait",
 	Success:              "OK",
 	Failed:               "Failed",
 	NoData:               "No call data yet",

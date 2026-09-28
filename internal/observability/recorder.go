@@ -13,14 +13,15 @@ const DefaultRecentCapacity = 500
 // ExecutionRecord 是运行分析保存的最小工具调用元数据。
 // 这里有意不包含参数、结果、错误正文或路径等 Payload。
 type ExecutionRecord struct {
-	ID            uint64    `json:"id"`
-	Tool          string    `json:"tool"`
-	Source        Source    `json:"source"`
-	StartedAt     time.Time `json:"started_at"`
-	DurationMS    float64   `json:"duration_ms"`
-	Success       bool      `json:"success"`
-	ErrorCode     string    `json:"error_code,omitempty"`
-	ErrorCategory string    `json:"error_category,omitempty"`
+	ID            uint64        `json:"id"`
+	Tool          string        `json:"tool"`
+	Source        Source        `json:"source"`
+	StartedAt     time.Time     `json:"started_at"`
+	DurationMS    float64       `json:"duration_ms"`
+	Success       bool          `json:"success"`
+	ErrorCode     string        `json:"error_code,omitempty"`
+	ErrorCategory string        `json:"error_category,omitempty"`
+	Stages        []StageRecord `json:"stages,omitempty"`
 }
 
 type ToolStats struct {
@@ -97,6 +98,7 @@ func (r *Recorder) EndTool(
 	success bool,
 	errorCode string,
 	errorCategory string,
+	stages []StageRecord,
 ) {
 	if r == nil {
 		return
@@ -133,6 +135,7 @@ func (r *Recorder) EndTool(
 		Success:       success,
 		ErrorCode:     errorCode,
 		ErrorCategory: errorCategory,
+		Stages:        append([]StageRecord(nil), stages...),
 	}
 	r.records[r.next] = record
 	r.next = (r.next + 1) % r.capacity

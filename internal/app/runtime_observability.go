@@ -31,8 +31,9 @@ func (r *Runtime) observeToolCall(ctx context.Context, name string, startedAt ti
 	}
 	source := observability.SourceFromContext(ctx)
 	duration := time.Since(startedAt)
+	stages := observability.CloseExecution(ctx)
 	if r != nil {
-		r.observer.EndTool(toolName, source, startedAt, duration, success, errorCode, errorCategory)
+		r.observer.EndTool(toolName, source, startedAt, duration, success, errorCode, errorCategory, stages)
 	}
 
 	attributes := []any{
