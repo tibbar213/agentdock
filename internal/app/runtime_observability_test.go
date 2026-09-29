@@ -1,8 +1,10 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	goruntime "runtime"
 	"strings"
 	"testing"
@@ -30,6 +32,9 @@ func TestRuntimeAnalyticsRecordsSafeToolMetadata(t *testing.T) {
 		t.Fatalf("unknown tool name was retained: %#v", snapshot.RecentCalls[0])
 	}
 	known := snapshot.RecentCalls[1]
+	if len(known.TraceID) != 32 || len(known.SpanID) != 16 {
+		t.Fatalf("known call trace identifiers = %q / %q", known.TraceID, known.SpanID)
+	}
 	if known.Tool != "agentdock_context" || known.Source != observability.SourceMCP {
 		t.Fatalf("known call metadata = %#v", known)
 	}
@@ -73,5 +78,31 @@ func TestRuntimeAnalyticsIncludesCommandStages(t *testing.T) {
 	if record.Stages[0].Name != observability.StageCommandStart ||
 		record.Stages[1].Name != observability.StageCommandForegroundWait {
 		t.Fatalf("command stages = %#v", record.Stages)
+	}
+}
+
+func TestRuntimeToolLogCarriesTraceIdentifiers(t *testing.T) {
+	rt := newRuntimeValidationTestRuntime(t)
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	ctx := observability.WithSource(context.Background(), observability.SourceMCP)
+	if _, err := rt.Call(ctx, "agentdock_context", map[string]any{}); err != nil {
+		t.Fatalf("agentdock_context: %v", err)
+	}
+	record := rt.observer.Snapshot().RecentCalls[0]
+	if record.TraceID == "" || record.SpanID == "" {
+		t.Fatalf("missing analytics trace identifiers: %#v", record)
+	}
+	body := logs.String()
+	for _, want := range []string{
+		`"trace_id":"` + record.TraceID + `"`,
+		`"span_id":"` + record.SpanID + `"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("tool log missing %s: %s", want, body)
+		}
 	}
 }

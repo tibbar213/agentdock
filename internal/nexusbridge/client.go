@@ -194,6 +194,7 @@ func bridgeHello(identity Identity, tools []string, descriptors []protocol.ToolD
 
 func (c *Client) invoke(parent context.Context, socket *websocket.Conn, incoming protocol.Message) {
 	ctx, cancel := context.WithCancel(parent)
+	ctx = extractBridgeTraceContext(ctx, &incoming)
 	c.cancelMu.Lock()
 	c.cancels[incoming.RequestID] = cancel
 	c.cancelMu.Unlock()

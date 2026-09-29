@@ -51,6 +51,7 @@ type Runtime struct {
 	taskTools      *tooltask.Service
 	acp            *toolacp.Service
 	observer       *observability.Recorder
+	tracing        *observability.Tracing
 	lifecycleMu    sync.RWMutex
 	commandCtx     context.Context
 	commandCancel  context.CancelFunc
@@ -154,6 +155,8 @@ func NewRuntime(cfg config.Config) (*Runtime, error) {
 	runtime.recall = toolrecall.New(func() config.Config { return runtime.cfg })
 	runtime.evolution = evolution.New(func() config.Config { return runtime.cfg }, tasks)
 	runtime.taskTools = tooltask.New(func() config.Config { return runtime.cfg }, tasks, runtime.evolution)
+	runtime.tracing = observability.NewTracing()
+
 	if cfg.ACPEnabled {
 		managers := make(map[string]*acpruntime.Manager)
 		for _, profile := range cfg.EffectiveACPProfiles() {
@@ -237,6 +240,13 @@ func (r *Runtime) Close() error {
 		if r.plugins != nil {
 			r.plugins.ReleaseMCPLeases()
 		}
+		if r.tracing != nil {
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			if err := r.tracing.Shutdown(shutdownCtx); err != nil {
+				closeErrors = append(closeErrors, fmt.Errorf("shutdown tracing: %w", err))
+			}
+			shutdownCancel()
+		}
 		r.closeErr = errors.Join(closeErrors...)
 	})
 	return r.closeErr
@@ -272,8 +282,14 @@ func (r *Runtime) ToolDefinition(name string) (ToolDefinition, bool) {
 }
 
 func (r *Runtime) Call(ctx context.Context, name string, args map[string]any) (result Result, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	startedAt := time.Now()
 	r.observer.BeginTool()
+	source := observability.SourceFromContext(ctx)
+	ctx, span := r.tracing.StartTool(ctx, source)
+	defer span.End()
 	ctx = observability.WithExecution(ctx, startedAt)
 	defer r.observeToolCall(ctx, name, startedAt, &err)
 

@@ -20,6 +20,8 @@ func TestRecorderKeepsBoundedNewestFirstHistory(t *testing.T) {
 			true,
 			"",
 			"",
+			"",
+			"",
 			nil,
 		)
 	}
@@ -58,6 +60,8 @@ func TestRecorderAggregatesNearestRankPercentilesAndErrors(t *testing.T) {
 			success,
 			code,
 			category,
+			"",
+			"",
 			nil,
 		)
 	}
@@ -81,7 +85,7 @@ func TestRecorderAggregatesNearestRankPercentilesAndErrors(t *testing.T) {
 func TestRecorderZeroValueDoesNotPanicOrLeakActiveCount(t *testing.T) {
 	recorder := &Recorder{}
 	recorder.BeginTool()
-	recorder.EndTool("tool", SourceInternal, time.Now(), time.Millisecond, true, "", "", nil)
+	recorder.EndTool("tool", SourceInternal, time.Now(), time.Millisecond, true, "", "", "", "", nil)
 
 	snapshot := recorder.Snapshot()
 	if snapshot.ActiveCalls != 0 {
@@ -101,7 +105,7 @@ func TestRecorderConcurrentWritesStayConsistent(t *testing.T) {
 			defer wait.Done()
 			for call := 0; call < callsPerWriter; call++ {
 				recorder.BeginTool()
-				recorder.EndTool("tool", SourceMCP, time.Now(), time.Millisecond, true, "", "", nil)
+				recorder.EndTool("tool", SourceMCP, time.Now(), time.Millisecond, true, "", "", "", "", nil)
 			}
 		}()
 	}
@@ -120,7 +124,7 @@ func TestRecorderConcurrentWritesStayConsistent(t *testing.T) {
 func TestSnapshotJSONIsZeroPayload(t *testing.T) {
 	recorder := NewRecorder(10)
 	recorder.BeginTool()
-	recorder.EndTool("read_file", SourceMCP, time.Now(), 2*time.Millisecond, false, "DENIED", "permission", nil)
+	recorder.EndTool("read_file", SourceMCP, time.Now(), 2*time.Millisecond, false, "DENIED", "permission", "", "", nil)
 
 	encoded, err := json.Marshal(recorder.Snapshot())
 	if err != nil {

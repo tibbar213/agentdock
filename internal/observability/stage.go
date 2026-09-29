@@ -5,6 +5,9 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const MaxStagesPerExecution = 16
@@ -86,6 +89,26 @@ func RecordStage(ctx context.Context, name Stage, startedAt time.Time, success b
 
 // CloseExecution 关闭当前调用的阶段收集并返回按开始时间排序的快照。
 // 后续异步 Goroutine 的迟到打点会被忽略，避免 child stage 超出父 Tool 生命周期。
+// AddStageEvents projects the existing lightweight stage model into OpenTelemetry
+// without creating another child-span tree. Event timestamps are the actual stage
+// completion times derived from the parent Tool start.
+func AddStageEvents(span trace.Span, toolStartedAt time.Time, stages []StageRecord) {
+	if span == nil || toolStartedAt.IsZero() {
+		return
+	}
+	for _, stage := range stages {
+		completedAt := toolStartedAt.Add(time.Duration((stage.StartedOffsetMS + stage.DurationMS) * float64(time.Millisecond)))
+		span.AddEvent(
+			string(stage.Name),
+			trace.WithTimestamp(completedAt),
+			trace.WithAttributes(
+				attribute.Float64("agentdock.stage.duration_ms", stage.DurationMS),
+				attribute.Bool("agentdock.stage.success", stage.Success),
+			),
+		)
+	}
+}
+
 func CloseExecution(ctx context.Context) []StageRecord {
 	state := executionFromContext(ctx)
 	if state == nil {

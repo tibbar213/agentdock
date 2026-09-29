@@ -16,6 +16,8 @@ type ExecutionRecord struct {
 	ID            uint64        `json:"id"`
 	Tool          string        `json:"tool"`
 	Source        Source        `json:"source"`
+	TraceID       string        `json:"trace_id,omitempty"`
+	SpanID        string        `json:"span_id,omitempty"`
 	StartedAt     time.Time     `json:"started_at"`
 	DurationMS    float64       `json:"duration_ms"`
 	Success       bool          `json:"success"`
@@ -98,6 +100,8 @@ func (r *Recorder) EndTool(
 	success bool,
 	errorCode string,
 	errorCategory string,
+	traceID string,
+	spanID string,
 	stages []StageRecord,
 ) {
 	if r == nil {
@@ -135,6 +139,8 @@ func (r *Recorder) EndTool(
 		Success:       success,
 		ErrorCode:     errorCode,
 		ErrorCategory: errorCategory,
+		TraceID:       traceID,
+		SpanID:        spanID,
 		Stages:        append([]StageRecord(nil), stages...),
 	}
 	r.records[r.next] = record

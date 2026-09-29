@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/uvwt/agentdock/internal/observability"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // observeToolCall 只记录固定白名单元数据。参数、结果、错误正文和 Details
@@ -32,8 +35,23 @@ func (r *Runtime) observeToolCall(ctx context.Context, name string, startedAt ti
 	source := observability.SourceFromContext(ctx)
 	duration := time.Since(startedAt)
 	stages := observability.CloseExecution(ctx)
+	traceID, spanID := observability.TraceIdentifiers(ctx)
+	span := trace.SpanFromContext(ctx)
+	observability.AddStageEvents(span, startedAt, stages)
+	span.SetAttributes(
+		attribute.String("agentdock.tool.name", toolName),
+		attribute.String("agentdock.tool.source", string(source)),
+		attribute.Bool("agentdock.tool.success", success),
+	)
+	if errorCode != "" {
+		span.SetAttributes(
+			attribute.String("error.type", errorCode),
+			attribute.String("agentdock.error.category", errorCategory),
+		)
+		span.SetStatus(codes.Error, errorCode)
+	}
 	if r != nil {
-		r.observer.EndTool(toolName, source, startedAt, duration, success, errorCode, errorCategory, stages)
+		r.observer.EndTool(toolName, source, startedAt, duration, success, errorCode, errorCategory, traceID, spanID, stages)
 	}
 
 	attributes := []any{
@@ -44,6 +62,9 @@ func (r *Runtime) observeToolCall(ctx context.Context, name string, startedAt ti
 	}
 	if errorCode != "" {
 		attributes = append(attributes, "error_code", errorCode, "error_category", errorCategory)
+	}
+	if traceID != "" {
+		attributes = append(attributes, "trace_id", traceID, "span_id", spanID)
 	}
 	slog.Info("tool finished", attributes...)
 
