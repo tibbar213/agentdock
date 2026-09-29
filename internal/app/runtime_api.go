@@ -6,6 +6,7 @@ import (
 
 	"github.com/uvwt/agentdock/internal/buildinfo"
 	"github.com/uvwt/agentdock/internal/config"
+	"github.com/uvwt/agentdock/internal/observability"
 	toolmcp "github.com/uvwt/agentdock/internal/tool/mcp"
 	toolplugin "github.com/uvwt/agentdock/internal/tool/plugin"
 )
@@ -45,6 +46,16 @@ func (r *Runtime) RuntimeAnalytics() Result {
 		"tool_stats":      snapshot.ToolStats,
 		"recent_calls":    snapshot.RecentCalls,
 		"process":         snapshot.Process,
+	}
+}
+
+// RuntimeDiagnostics 只暴露最近调用的零 Payload 投影，供 Nexus 按需远程排障。
+// 本地 analytics 的进程指标与聚合统计不进入跨节点契约。
+func (r *Runtime) RuntimeDiagnostics() Result {
+	return Result{
+		"ok":           true,
+		"source":       runtimeAPISource,
+		"recent_calls": observability.ProjectDiagnostics(r.observer.RecentCalls()),
 	}
 }
 

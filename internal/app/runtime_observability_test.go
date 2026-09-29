@@ -135,3 +135,29 @@ func TestRuntimeToolLogCorrelatesRemoteTraceWithoutFakeChildSpan(t *testing.T) {
 		t.Fatalf("tool log invented a local child span id: %s", body)
 	}
 }
+
+func TestRuntimeDiagnosticsExposeOnlyRemoteSafeRecentCalls(t *testing.T) {
+	runtime := newRuntimeValidationTestRuntime(t)
+	ctx := observability.WithSource(context.Background(), observability.SourceNexus)
+	secret := "/Users/example/private/secret.txt"
+	if _, err := runtime.Call(ctx, "agentdock_context", map[string]any{"future_field": secret}); err == nil {
+		t.Fatal("expected validation error")
+	}
+
+	encoded, err := json.Marshal(runtime.RuntimeDiagnostics())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := strings.ToLower(string(encoded))
+	for _, forbidden := range []string{
+		strings.ToLower(secret), "span_id", "tool_stats", "process", "p50_duration_ms",
+		"arguments", "output", "command", "path", "error_message", "stack",
+	} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("runtime diagnostics leaked %q: %s", forbidden, body)
+		}
+	}
+	if !strings.Contains(body, `"error_code":"invalid_argument"`) {
+		t.Fatalf("runtime diagnostics missing stable error code: %s", body)
+	}
+}

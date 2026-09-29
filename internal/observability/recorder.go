@@ -150,6 +150,20 @@ func (r *Recorder) EndTool(
 	}
 }
 
+// RecentCalls 返回当前内存环里最近调用的独立副本，不计算百分位或进程指标。
+func (r *Recorder) RecentCalls() []ExecutionRecord {
+	if r == nil {
+		return []ExecutionRecord{}
+	}
+	r.mu.RLock()
+	recent := r.recentLocked()
+	r.mu.RUnlock()
+	for i := range recent {
+		recent[i].Stages = append([]StageRecord(nil), recent[i].Stages...)
+	}
+	return recent
+}
+
 func (r *Recorder) Snapshot() Snapshot {
 	if r == nil {
 		return Snapshot{}
