@@ -14,7 +14,7 @@ import (
 
 // observeToolCall 只记录固定白名单元数据。参数、结果、错误正文和 Details
 // 都不能进入运行分析，避免诊断能力反过来扩大敏感数据暴露面。
-func (r *Runtime) observeToolCall(ctx context.Context, name string, startedAt time.Time, callErr *error) {
+func (r *Runtime) observeToolCall(parentCtx, ctx context.Context, name string, startedAt time.Time, callErr *error) {
 	recovered := recover()
 	success := recovered == nil && (callErr == nil || *callErr == nil)
 	errorCode := ""
@@ -35,20 +35,22 @@ func (r *Runtime) observeToolCall(ctx context.Context, name string, startedAt ti
 	source := observability.SourceFromContext(ctx)
 	duration := time.Since(startedAt)
 	stages := observability.CloseExecution(ctx)
-	traceID, spanID := observability.TraceIdentifiers(ctx)
+	traceID, spanID := observability.TraceIdentifiers(parentCtx, ctx)
 	span := trace.SpanFromContext(ctx)
-	observability.AddStageEvents(span, startedAt, stages)
-	span.SetAttributes(
-		attribute.String("agentdock.tool.name", toolName),
-		attribute.String("agentdock.tool.source", string(source)),
-		attribute.Bool("agentdock.tool.success", success),
-	)
-	if errorCode != "" {
+	if span.IsRecording() {
+		observability.AddStageEvents(span, startedAt, stages)
 		span.SetAttributes(
-			attribute.String("error.type", errorCode),
-			attribute.String("agentdock.error.category", errorCategory),
+			attribute.String("agentdock.tool.name", toolName),
+			attribute.String("agentdock.tool.source", string(source)),
+			attribute.Bool("agentdock.tool.success", success),
 		)
-		span.SetStatus(codes.Error, errorCode)
+		if errorCode != "" {
+			span.SetAttributes(
+				attribute.String("error.type", errorCode),
+				attribute.String("agentdock.error.category", errorCategory),
+			)
+			span.SetStatus(codes.Error, errorCode)
+		}
 	}
 	if r != nil {
 		r.observer.EndTool(toolName, source, startedAt, duration, success, errorCode, errorCategory, traceID, spanID, stages)
@@ -64,7 +66,10 @@ func (r *Runtime) observeToolCall(ctx context.Context, name string, startedAt ti
 		attributes = append(attributes, "error_code", errorCode, "error_category", errorCategory)
 	}
 	if traceID != "" {
-		attributes = append(attributes, "trace_id", traceID, "span_id", spanID)
+		attributes = append(attributes, "trace_id", traceID)
+		if spanID != "" {
+			attributes = append(attributes, "span_id", spanID)
+		}
 	}
 	slog.Info("tool finished", attributes...)
 

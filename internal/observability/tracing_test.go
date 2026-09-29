@@ -5,21 +5,19 @@ import (
 	"testing"
 	"time"
 
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
-func TestTracingCreatesRootAndContinuesRemoteParent(t *testing.T) {
-	tracing := NewTracing()
-	t.Cleanup(func() { _ = tracing.Shutdown(context.Background()) })
+func TestTracingDefaultsToNoopAndPreservesRemoteParent(t *testing.T) {
+	tracing := NewTracing(nil)
 
 	rootCtx, rootSpan := tracing.StartTool(context.Background(), SourceMCP)
-	rootTraceID, rootSpanID := TraceIdentifiers(rootCtx)
-	if len(rootTraceID) != 32 || len(rootSpanID) != 16 {
-		t.Fatalf("root trace identifiers = %q / %q", rootTraceID, rootSpanID)
-	}
+	rootTraceID, rootSpanID := TraceIdentifiers(context.Background(), rootCtx)
 	rootSpan.End()
+	if rootTraceID != "" || rootSpanID != "" {
+		t.Fatalf("default no-op root identifiers = %q / %q", rootTraceID, rootSpanID)
+	}
 
 	traceID, err := trace.TraceIDFromHex("4bf92f3577b34da6a3ce929d0e0e4736")
 	if err != nil {
@@ -37,39 +35,62 @@ func TestTracingCreatesRootAndContinuesRemoteParent(t *testing.T) {
 		TraceID: traceID, SpanID: spanID, TraceFlags: trace.FlagsSampled, TraceState: state, Remote: true,
 	})
 	parentCtx := trace.ContextWithRemoteSpanContext(context.Background(), parent)
-	childCtx, childSpan := tracing.StartTool(parentCtx, SourceNexus)
-	child := trace.SpanContextFromContext(childCtx)
-	defer childSpan.End()
-	if child.TraceID() != parent.TraceID() || child.SpanID() == parent.SpanID() {
-		t.Fatalf("child span context = %s/%s, parent = %s/%s", child.TraceID(), child.SpanID(), parent.TraceID(), parent.SpanID())
+	activeCtx, span := tracing.StartTool(parentCtx, SourceNexus)
+	defer span.End()
+
+	active := trace.SpanContextFromContext(activeCtx)
+	if !active.Equal(parent) {
+		t.Fatalf("default no-op span context = %#v, want remote parent %#v", active, parent)
 	}
-	if !child.IsSampled() || child.TraceState().String() != parent.TraceState().String() {
-		t.Fatalf("child sampling/tracestate = sampled:%v state:%q", child.IsSampled(), child.TraceState())
+	gotTraceID, gotSpanID := TraceIdentifiers(parentCtx, activeCtx)
+	if gotTraceID != traceID.String() || gotSpanID != "" {
+		t.Fatalf("correlation identifiers = %q / %q", gotTraceID, gotSpanID)
 	}
 }
 
+type recordedEvent struct {
+	name string
+	time time.Time
+}
+
+type recordingSpan struct {
+	trace.Span
+	events []recordedEvent
+}
+
+func newRecordingSpan() *recordingSpan {
+	return &recordingSpan{Span: noop.Span{}}
+}
+
+func (s *recordingSpan) IsRecording() bool { return true }
+
+func (s *recordingSpan) AddEvent(name string, options ...trace.EventOption) {
+	cfg := trace.NewEventConfig(options...)
+	s.events = append(s.events, recordedEvent{name: name, time: cfg.Timestamp()})
+}
+
 func TestAddStageEventsUsesOriginalStageTiming(t *testing.T) {
-	recorder := tracetest.NewSpanRecorder()
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
-	tracer := provider.Tracer("test")
+	span := newRecordingSpan()
 	startedAt := time.Now().Add(-time.Second)
-	ctx, span := tracer.Start(context.Background(), "tool", trace.WithTimestamp(startedAt))
-	_ = ctx
 	AddStageEvents(span, startedAt, []StageRecord{{
 		Name: StageCommandStart, StartedOffsetMS: 10, DurationMS: 5, Success: true,
 	}})
-	span.End()
-	ended := recorder.Ended()
-	if len(ended) != 1 || len(ended[0].Events()) != 1 {
-		t.Fatalf("ended spans/events = %d/%v", len(ended), ended)
+	if len(span.events) != 1 {
+		t.Fatalf("events = %#v", span.events)
 	}
-	event := ended[0].Events()[0]
-	if event.Name != string(StageCommandStart) {
-		t.Fatalf("event name = %q", event.Name)
+	event := span.events[0]
+	if event.name != string(StageCommandStart) {
+		t.Fatalf("event name = %q", event.name)
 	}
 	want := startedAt.Add(15 * time.Millisecond)
-	if event.Time.Sub(want) > time.Microsecond || want.Sub(event.Time) > time.Microsecond {
-		t.Fatalf("event time = %v, want %v", event.Time, want)
+	if event.time.Sub(want) > time.Microsecond || want.Sub(event.time) > time.Microsecond {
+		t.Fatalf("event time = %v, want %v", event.time, want)
 	}
+}
+
+func TestAddStageEventsSkipsNoopSpan(t *testing.T) {
+	span := noop.Span{}
+	AddStageEvents(span, time.Now(), []StageRecord{{
+		Name: StageCommandStart, DurationMS: 1, Success: true,
+	}})
 }

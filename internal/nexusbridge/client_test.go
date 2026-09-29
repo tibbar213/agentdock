@@ -293,8 +293,8 @@ func TestBridgeToolInvokeContinuesTraceContextIntoRuntime(t *testing.T) {
 	if record.TraceID != "4bf92f3577b34da6a3ce929d0e0e4736" {
 		t.Fatalf("trace id = %q", record.TraceID)
 	}
-	if record.SpanID == "" || record.SpanID == "00f067aa0ba902b7" {
-		t.Fatalf("runtime span id = %q, want child span", record.SpanID)
+	if record.SpanID != "" {
+		t.Fatalf("runtime span id = %q, want empty without an installed SDK", record.SpanID)
 	}
 
 	cancel()

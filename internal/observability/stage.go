@@ -93,7 +93,7 @@ func RecordStage(ctx context.Context, name Stage, startedAt time.Time, success b
 // without creating another child-span tree. Event timestamps are the actual stage
 // completion times derived from the parent Tool start.
 func AddStageEvents(span trace.Span, toolStartedAt time.Time, stages []StageRecord) {
-	if span == nil || toolStartedAt.IsZero() {
+	if span == nil || !span.IsRecording() || toolStartedAt.IsZero() {
 		return
 	}
 	for _, stage := range stages {
